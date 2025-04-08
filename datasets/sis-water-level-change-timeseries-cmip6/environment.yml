@@ -1,0 +1,15 @@
+name: gtsmip_water_levels
+channels:
+  - defaults
+dependencies:
+  - numpy
+  - cdsapi
+  - pandas
+  - netCDF4
+  - dask
+  - xarray
+  - matplotlib
+  - cartopy
+  - pip
+  - pip:
+    - cdsapi
