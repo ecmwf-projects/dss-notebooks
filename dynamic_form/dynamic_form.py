@@ -1,9 +1,13 @@
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Tuple
 from IPython.display import display, clear_output
 import ipywidgets as widgets
 
 
-def build_collection_form(client, output: Optional[widgets.Output] = None) -> None:
+def build_collection_form(
+    client, output: Optional[widgets.Output] = None,
+    dataset: Optional[str] = None,
+    request: Optional[Dict[str, list[str]]] = None,
+) -> None:
     """
     Display an interactive form in a Jupyter notebook that dynamically rebuilds 
     when the selected collection changes. Constraints are applied via the collection's 
@@ -28,6 +32,7 @@ def build_collection_form(client, output: Optional[widgets.Output] = None) -> No
         The form is displayed in the notebook cell output. This function does not return a value.
     """
     collections: List[str] = client.get_collections().collection_ids
+    collections.sort()
     form_output: widgets.Output = output or widgets.Output()
 
     # Top-level dropdown for collection selection
@@ -93,6 +98,8 @@ def build_collection_form(client, output: Optional[widgets.Output] = None) -> No
                 *[widget_defs[key] for key in widget_defs]
             ]))
 
+        return widget_defs
+
     # React to collection change
     def on_collection_change(change):
         if change["name"] == "value" and change["new"] != change["old"]:
@@ -101,5 +108,33 @@ def build_collection_form(client, output: Optional[widgets.Output] = None) -> No
     collection_widget.observe(on_collection_change, names="value")
 
     # Build initial form
-    build_form(collection_widget.value)
+    widget_defs = build_form(collection_widget.value)
     display(form_output)
+    
+    return collection_widget, widget_defs
+
+def widgets_to_request(
+    user_selection: Tuple[widgets.Dropdown, Dict[str, widgets.SelectMultiple]],
+) -> Tuple[str, Dict[str, list[str]]]:
+    """
+    Convert the state of the widgets to a request dictionary.
+
+    Parameters
+    ----------
+    widget_defs : dict
+        A dictionary of widget definitions.
+
+    Returns
+    -------
+    dict
+        A dictionary representing the current state of the widgets.
+    """
+    collection_widget, widget_defs = user_selection
+    collection_id = collection_widget.value
+    request = {
+        key: list(widget.value) for key, widget in widget_defs.items() if widget.value
+    }
+    for key, values in request.items():
+        if len(values) == 1:
+            request[key] = values[0]
+    return collection_id, request
