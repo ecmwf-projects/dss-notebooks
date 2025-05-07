@@ -1,6 +1,7 @@
 from typing import Optional, Dict, List, Tuple, Any
 from IPython.display import display, clear_output
 import ipywidgets as widgets
+import json
 
 def build_collection_form(
     client,
@@ -35,11 +36,15 @@ def build_collection_form(
 
     collection_widget = widgets.Dropdown(
         options=collections,
-        description='Collection',
-        value=collections[0],
+        description='Dataset',
+        value=None,
     )
+    
+    widget_defs: Dict[str, widgets.Widget] = {}  # shared mutable dictionary
 
-    def build_form(collection_id: str) -> Dict[str, widgets.Widget]:
+    selection_output = widgets.Output()
+
+    def build_form(collection_id: str):
         """
         Build or rebuild the form widgets based on the selected collection's metadata.
 
@@ -47,18 +52,27 @@ def build_collection_form(
         ----------
         collection_id : str
             Identifier of the selected collection.
-
-        Returns
-        -------
-        Dict[str, widgets.Widget]
-            A dictionary mapping field names to their corresponding widgets.
         """
         form_output.clear_output()
+        selection_output.clear_output()
+        widget_defs.clear()
+        if collection_id is None:
+            with form_output:
+                display(widgets.VBox([
+                    widgets.HTML("<b>Select a dataset to begin</b>"),
+                    collection_widget
+                ]))
+            return
         collection = client.get_collection(collection_id)
-        selection: Dict[str, List[str]] = {}
         form_widgets = form_json_to_widgets_dict(collection.form)
+        
+        selection: Dict[str, List[str]] = {}
 
-        widget_defs: Dict[str, widgets.Widget] = {}
+        def update_selection_display():
+            json_str = json.dumps(selection, indent=2)
+            with selection_output:
+                clear_output()
+                display(widgets.HTML(f"<pre>{json_str}</pre>"))
 
         def on_change(change):
             for key, widget in widget_defs.items():
@@ -87,91 +101,74 @@ def build_collection_form(
                         widget.options = values
                         widget.value = tuple([x for x in selection[key] if x in values])
 
+            update_selection_display()
+
         for key, f_widget in form_widgets.items():
             widget_type = f_widget.get("type", "checkbox")
             options = f_widget["values"]
             labels = f_widget.get("labels", {})
             columns = f_widget.get("columns", 4)
 
-            if widget_type == "checkbox":
-                toggle_buttons = [
-                    widgets.ToggleButton(
-                        value=False,
-                        description=labels.get(opt, opt),
-                        layout=widgets.Layout(width='auto'),
-                        button_style=''
-                    ) for opt in options
-                ]
+            buttons = [
+                widgets.ToggleButton(
+                    value=False,
+                    description=labels.get(opt, opt),
+                    layout=widgets.Layout(width='auto'),
+                    button_style=''
+                ) for opt in options
+            ]
 
-                def get_toggle_value(tb_list=toggle_buttons, opts=options):
+            if widget_type == "checkbox":
+                def get_value(tb_list=buttons, opts=options):
                     return [opt for opt, tb in zip(opts, tb_list) if tb.value]
 
-                for tb in toggle_buttons:
+                for tb in buttons:
                     tb.observe(on_change, names="value")
 
-                widget = widgets.VBox([
-                    widgets.HTML(f"<b>{f_widget['title']}</b>"),
-                    widgets.GridBox(
-                        children=toggle_buttons,
-                        layout=widgets.Layout(grid_template_columns=f"repeat({columns}, auto)")
-                    )
-                ])
-                widget._get_value = get_toggle_value
-                widget_defs[key] = widget
-
             elif widget_type == "radio":
-                radio_buttons = [
-                    widgets.ToggleButton(
-                        value=False,
-                        description=labels.get(opt, opt),
-                        layout=widgets.Layout(width='auto'),
-                        button_style=''
-                    ) for opt in options
-                ]
-
-                def on_radio_click(change, opts=options, tb_list=radio_buttons):
+                f_widget["title"] = f"{f_widget['title']} (select one)"
+                def on_radio_click(change, opts=options, tb_list=buttons):
                     if change['new']:
                         for tb in tb_list:
                             if tb is not change['owner']:
                                 tb.value = False
                         on_change(change)
 
-                for tb in radio_buttons:
-                    tb.observe(lambda change, tb_list=radio_buttons: on_radio_click(change, tb_list=tb_list), names='value')
+                for tb in buttons:
+                    tb.observe(lambda change, tb_list=buttons: on_radio_click(change, tb_list=tb_list), names='value')
 
-                def get_radio_value(tb_list=radio_buttons, opts=options):
+                def get_value(tb_list=buttons, opts=options):
                     for opt, tb in zip(opts, tb_list):
                         if tb.value:
                             return [opt]
                     return []
 
-                widget = widgets.VBox([
-                    widgets.HTML(f"<b>{f_widget['title']}</b>"),
-                    widgets.GridBox(
-                        children=radio_buttons,
-                        layout=widgets.Layout(grid_template_columns=f"repeat({columns}, auto)")
-                    )
-                ])
-                widget._get_value = get_radio_value
-                widget_defs[key] = widget
-
-            else:
-                widget = widgets.SelectMultiple(
-                    options=options,
-                    description=key
+            widget = widgets.VBox([
+                widgets.HTML(f"<h3>{f_widget['title']}</h3>"),
+                widgets.GridBox(
+                    children=buttons,
+                    layout=widgets.Layout(grid_template_columns=f"repeat({columns}, auto)")
                 )
-                widget.observe(on_change, names="value")
-                widget._get_value = lambda w=widget: list(w.value)
-                widget_defs[key] = widget
+            ])
 
+            default_values = f_widget.get("default", [])
+            for tb, opt in zip(buttons, options):
+                tb.value = opt in default_values
+
+            widget._get_value = get_value
+            widget_defs[key] = widget
+
+        update_selection_display()
+        
         with form_output:
             display(widgets.VBox([
-                widgets.HTML(f"<h3>{collection.title}</h3>"),
                 collection_widget,
-                *[widget_defs[key] for key in widget_defs]
+                widgets.HTML(f"<h2>{collection.title}</h2>"),
+                *[widget_defs[key] for key in widget_defs],
+                widgets.HTML("<h3>Current Selection:</h3>"),
+                selection_output
             ]))
 
-        return widget_defs
 
     def on_collection_change(change):
         """React to changes in the selected collection and rebuild the form."""
@@ -180,7 +177,8 @@ def build_collection_form(
 
     collection_widget.observe(on_collection_change, names="value")
 
-    widget_defs = build_form(collection_widget.value)
+
+    build_form(collection_widget.value)
     display(form_output)
 
     return collection_widget, widget_defs
@@ -250,7 +248,10 @@ def form_json_to_widgets_dict(
         out_widgets[widget_name]["title"] = widget.get("label", "")
         out_widgets[widget_name]["type"] = widget_map.get(widget_type, widget_type)
         out_widgets[widget_name]["columns"] = columns
+        if "default" in details:
+            out_widgets[widget_name]["default"] = details["default"]
     return out_widgets
+
 
 def widgets_to_request(
     collection_widget: widgets.Dropdown,
@@ -273,9 +274,9 @@ def widgets_to_request(
     """
     collection_id = collection_widget.value
     request = {
-        key: widget._get_value() if hasattr(widget, "_get_value") else list(widget.value)
+        key: widget._get_value()
         for key, widget in widget_defs.items()
-        if (hasattr(widget, "_get_value") and widget._get_value()) or widget.value
+        if hasattr(widget, "_get_value") and widget._get_value()
     }
     for key, values in request.items():
         if isinstance(values, list) and len(values) == 1:
