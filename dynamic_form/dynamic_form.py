@@ -1,10 +1,11 @@
-from typing import Optional, Dict, List, Tuple
+from typing import Optional, Dict, List, Tuple, Any
 from IPython.display import display, clear_output
 import ipywidgets as widgets
 
 
 def build_collection_form(
-    client, output: Optional[widgets.Output] = None,
+    client,
+    output: Optional[widgets.Output] = None,
     dataset: Optional[str] = None,
     request: Optional[Dict[str, list[str]]] = None,
 ) -> None:
@@ -41,7 +42,7 @@ def build_collection_form(
         description='Collection',
         value=collections[0],
     )
-
+    
     def build_form(collection_id: str) -> None:
         """
         Build or rebuild the form based on the selected collection.
@@ -54,22 +55,17 @@ def build_collection_form(
         form_output.clear_output()
         collection = client.get_collection(collection_id)
         selection: Dict[str, List[str]] = {}
-
-        # Initial constraints
-        initial_options = collection.apply_constraints({})
-
-        # Filter out keys with no options
-        initial_options = {
-            k: v for k, v in initial_options.items() if v
+        form_widgets = form_json_to_widgets_dict(collection.form)
+        full_form_values = {
+            k: w["values"] for k, w in form_widgets.items()
         }
-
         # Create widget per constrained key
         widget_defs: Dict[str, widgets.SelectMultiple] = {
             key: widgets.SelectMultiple(
                 description=key,
-                options=values,
+                options=f_widget["values"],
             )
-            for key, values in initial_options.items()
+            for key, f_widget in form_widgets.items()
         }
 
         # Callback to update widgets on value change
@@ -113,8 +109,70 @@ def build_collection_form(
     
     return collection_widget, widget_defs
 
+
+def form_json_to_widgets_dict(
+    form: list[dict[str, Any]],
+    ignore_widget_names: List[str] = [
+        "download_format",
+        "data_format"
+    ],
+    ignore_widget_types: List[str] = [
+        "ExclusiveGroupWidget",
+        "FreeEditionWidget",
+        "GeographicExtentWidget",
+        "GeographicLocationWidget",
+        "LicenceWidget",
+    ]
+) -> dict[str, Any]:
+    """
+    Convert a form JSON to a dictionary of widgets.
+
+    Parameters
+    ----------
+    form : list[dict[str, Any]]
+        A list of dictionaries representing the form.
+
+    Returns
+    -------
+    dict[str, Any]
+        A dictionary mapping widget IDs to their values.
+    """
+    out_widgets = {}
+    for widget in form:
+        widget_name = widget.get("name", "")
+        widget_type = widget.get("type", "")
+        if widget_name in ignore_widget_names or widget_type in ignore_widget_types:
+            continue
+        if widget_name in out_widgets:
+            log.warning(
+                f"Duplicate widget name '{widget_name}' found in form JSON. "
+                "Ignoring second occurrence."
+            )
+            continue
+        out_widgets[widget_name] = {
+            k: widget[k] for k in ["label", "type"] if k in widget
+        }
+        details = widget.get("details", {})
+        # ignore groups for now
+        if "groups" in details:
+            labels = {}
+            values = []
+            for group in details["groups"]:
+                labels.update({
+                    k: v for k, v in group.get("labels", {}).items()
+                })
+                values += [v for v in group.get("values", []) if v not in values]
+        else:
+            labels = details.get("labels", {})
+            values = details.get("values", [])
+        out_widgets[widget_name]["labels"] = labels
+        out_widgets[widget_name]["values"] = values
+    return out_widgets
+
+
 def widgets_to_request(
-    user_selection: Tuple[widgets.Dropdown, Dict[str, widgets.SelectMultiple]],
+    collection_widget: widgets.Dropdown,
+    widget_defs: Dict[str, widgets.SelectMultiple],
 ) -> Tuple[str, Dict[str, list[str]]]:
     """
     Convert the state of the widgets to a request dictionary.
@@ -129,7 +187,6 @@ def widgets_to_request(
     dict
         A dictionary representing the current state of the widgets.
     """
-    collection_widget, widget_defs = user_selection
     collection_id = collection_widget.value
     request = {
         key: list(widget.value) for key, widget in widget_defs.items() if widget.value
@@ -137,4 +194,5 @@ def widgets_to_request(
     for key, values in request.items():
         if len(values) == 1:
             request[key] = values[0]
+
     return collection_id, request
