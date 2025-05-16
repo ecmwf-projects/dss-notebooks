@@ -1,11 +1,16 @@
-# cads-notebooks
+# dss-notebooks
 
-Notebooks useful for the CADS datasets.
+This library of notebooks for documenting various aspects of the ECMWF Data Stores Service (DSS).
+This includes the accessing and visualising the datasets available via the DSS, and providing
+traceability and documentation for computational components of the service.
 
 ## datasets/
 
-This folder contains notebooks which are relevent to specific datasets. Primarily the notebooks used to create
-the overview images used by the web-portal.
+This folder contains notebooks which are relevent to specific datasets. Primarily the notebooks provided here
+are used to create the overview images used by the web-portal.
+
+Additionally the dataset/dss-jupyter-forms.ipynb notebook which provides an interactive access to the 
+entire DSS catalogue from an integrated webform.
 
 ## documentation/
 
