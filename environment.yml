@@ -1,0 +1,8 @@
+# The environment.yml file is used by Binder when creating the working environment for this repository.
+# Please add dependencies to the requirements.txt file. If there are dependencies that you feel
+# are unstable in PyPi, they can be added here above the pip dependencies, and the conda installation
+# will take precedence.
+dependencies:
+  - pip
+  - pip:
+    - "-r requirements.txt"  

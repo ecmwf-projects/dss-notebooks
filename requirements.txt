@@ -1,0 +1,28 @@
+# Core data access
+aiohttp
+xarray
+zarr
+obstore
+requests
+
+# CDS / ADS API clients
+cdsapi
+ecmwf-datastores-client
+
+# earthkit ecosystem
+earthkit==1.0.0rc1
+
+# ECMWF Jupyter components (used in dss-jupyter-form notebook)
+ecmwf-jupyter-components
+
+# Scientific / geospatial
+numpy
+pandas
+matplotlib
+cartopy
+geopandas
+cfgrib
+
+# Utilities
+pyyaml
+itables

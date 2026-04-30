@@ -6,8 +6,14 @@ traceability and documentation for computational components of the service.
 
 ## datasets/
 
-This folder contains notebooks which are relevent to specific datasets. Primarily the notebooks provided here
-are used to create the overview images used by the web-portal.
+This folder contains notebooks which are relevent to specific datasets. The notebooks provided here
+provide simple demonstrations of accessing and visualising the data available on the CDS
+with earthkit, in the demo.ipynb notebooks.
+
+Where available, demonstrations of how to access the Analysis Ready Cloud Optimised (ARCO) data
+using xarray and earthkit tools. For more details on the ARCO data made available via the
+ECMWF-DSS, please refer to the
+[ARCO data documentation pages](https://confluence.ecmwf.int/x/8aYZJg).
 
 Additionally the dataset/dss-jupyter-forms.ipynb notebook which provides an interactive access to the 
 entire DSS catalogue from an integrated webform.
