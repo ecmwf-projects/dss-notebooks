@@ -1,6 +1,5 @@
 # setuptools-scm
 version.py
-test.ipynb
 
 # Sphinx automatic generation of API
 docs/_api/
